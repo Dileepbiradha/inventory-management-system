@@ -1,0 +1,36 @@
+# Python
+.venv/
+venv/
+backend/venv/
+backend/.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Environment files
+.env
+.env.local
+.env.production
+backend/.env
+frontend/.env
+frontend/.env.production
+
+# Database
+*.db
+*.sqlite
+inventory.db
+
+# Node
+node_modules/
+frontend/node_modules/
+dist/
+build/
+frontend/dist/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
