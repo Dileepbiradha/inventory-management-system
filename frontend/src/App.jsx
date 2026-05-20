@@ -30,7 +30,7 @@ export default function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/products" element={<Products />} />
         <Route path="/categories" element={<Categories />} />
-        <Route path="//stock-movements" element={<Movements />} />
+        <Route path="/stock-movements" element={<Movements />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
 
