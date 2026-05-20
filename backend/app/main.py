@@ -1,5 +1,4 @@
 from fastapi import FastAPI
-
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import engine, Base
@@ -31,12 +30,12 @@ allowed_origins = os.getenv(
     "http://localhost:5173,http://localhost:3000"
 ).split(",")
 
+# Strip whitespace from each origin (just in case)
+allowed_origins = [origin.strip() for origin in allowed_origins]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "https://your-app-name.vercel.app",  # ⚠️ Replace with YOUR Vercel URL
-    ],
+    allow_origins=allowed_origins,   # ✅ NOW USING THE ENV VARIABLE!
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
