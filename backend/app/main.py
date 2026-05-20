@@ -1,37 +1,102 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from app.database import SessionLocal, engine, Base
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.database import SessionLocal
 from app.models.user import User
-from app.core.security import get_password_hash
+from app.core.security import hash_password
 
-app = FastAPI()
+# Import all routers
+from app.routers import (
+    auth,
+    users,
+    categories,
+    suppliers,
+    products,
+    stock_movements,
+    dashboard,
+)
 
-# ... your existing code (CORS, routers, etc.) ...
 
-@app.on_event("startup")
-def create_admin_user():
-    """Auto-create admin user on startup if it doesn't exist"""
-    Base.metadata.create_all(bind=engine)  # Ensure tables exist
+# ---------------------------------------------------------------------
+# Startup / Shutdown lifecycle
+# ---------------------------------------------------------------------
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
-        admin = db.query(User).filter(User.username == "admin").first()
-        if not admin:
-            new_admin = User(
+        existing = db.query(User).filter(User.username == "admin").first()
+        if not existing:
+            admin = User(
                 username="admin",
                 email="admin@example.com",
-                hashed_password=get_password_hash("admin123"),
-                role="admin",
-                is_active=True
+                hashed_password=hash_password("admin123"),
+                is_active=True,
+                is_admin=True,
             )
-            db.add(new_admin)
+            db.add(admin)
             db.commit()
-            print("✅ Admin user created on startup")
+            print("✅ Default admin created (username: admin / password: admin123)")
         else:
-            # Reset password every deploy (optional - remove later)
-            admin.hashed_password = get_password_hash("admin123")
-            admin.is_active = True
-            db.commit()
-            print("✅ Admin password reset on startup")
+            print("ℹ️  Admin already exists")
     except Exception as e:
-        print(f"❌ Error creating admin: {e}")
+        print(f"⚠️  Startup error: {e}")
     finally:
         db.close()
+
+    yield
+    print("👋 Shutting down Inventory Management System")
+
+
+# ---------------------------------------------------------------------
+# FastAPI app
+# ---------------------------------------------------------------------
+app = FastAPI(
+    title="Inventory Management System",
+    description="Backend API for managing products, stock, suppliers, and users.",
+    version="1.0.0",
+    lifespan=lifespan,
+)
+
+# 🔧 Disable automatic trailing-slash redirects (fixes 404 on POST /movements)
+app.router.redirect_slashes = False
+
+# ---------------------------------------------------------------------
+# CORS
+# ---------------------------------------------------------------------
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 🔒 In production, replace with your frontend URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ---------------------------------------------------------------------
+# Routers — only add "/api" prefix; routers already define their own
+# sub-prefix (/auth, /users, /categories, ...) and tags.
+# ---------------------------------------------------------------------
+app.include_router(auth.router,            prefix="/api")
+app.include_router(users.router,           prefix="/api")
+app.include_router(categories.router,      prefix="/api")
+app.include_router(suppliers.router,       prefix="/api")
+app.include_router(products.router,        prefix="/api")
+app.include_router(stock_movements.router, prefix="/api")
+app.include_router(dashboard.router,       prefix="/api")
+
+
+# ---------------------------------------------------------------------
+# Root & health endpoints
+# ---------------------------------------------------------------------
+@app.get("/", tags=["Root"])
+def root():
+    return {
+        "message": "Inventory Management System API",
+        "status": "running",
+        "docs": "/docs",
+    }
+
+
+@app.get("/health", tags=["Root"])
+def health():
+    return {"status": "healthy"}
