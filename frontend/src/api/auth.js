@@ -17,6 +17,7 @@ apiClient.interceptors.request.use((config) => {
 });
 
 export const authAPI = {
+  // ✅ Login
   login: ({ email, password }) => {
     const formData = new URLSearchParams();
     formData.append('username', email);
@@ -28,5 +29,44 @@ export const authAPI = {
     });
   },
 
+  // ✅ Register (THIS WAS MISSING!)
+  register: (userData) => {
+    return axios.post(`${API_URL}/auth/register`, userData, {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  },
+
+  // ✅ Get current user
   me: () => apiClient.get('/auth/me'),
+
+  // ✅ Verify email
+  verifyEmail: (token) => {
+    return axios.get(`${API_URL}/auth/verify-email/${token}`);
+  },
+
+  // ✅ Resend verification email
+  resendVerification: (email) => {
+    return axios.post(`${API_URL}/auth/resend-verification`, { email });
+  },
+
+  // ✅ Forgot password
+  forgotPassword: (email) => {
+    return axios.post(`${API_URL}/auth/forgot-password`, { email });
+  },
+
+  // ✅ Reset password
+  resetPassword: (token, newPassword) => {
+    return axios.post(`${API_URL}/auth/reset-password`, {
+      token,
+      new_password: newPassword,
+    });
+  },
+
+  // ✅ Change password (requires login)
+  changePassword: (oldPassword, newPassword) => {
+    return apiClient.post('/auth/change-password', {
+      old_password: oldPassword,
+      new_password: newPassword,
+    });
+  },
 };
