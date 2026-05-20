@@ -17,8 +17,9 @@ from app.core.security import get_current_user
 
 router = APIRouter(prefix="/movements", tags=["movements"])
 
+
 # ==================== LIST WITH FILTERS ====================
-@router.get("/", response_model=List[StockMovementWithDetails])
+@router.get("", response_model=List[StockMovementWithDetails])  # 👈 changed
 def list_movements(
     skip: int = 0,
     limit: int = Query(50, le=200),
@@ -128,9 +129,9 @@ def get_movement(
     )
 
 
-# ==================== CREATE (smart!) ====================
+# ==================== CREATE ====================
 @router.post(
-    "/", response_model=StockMovementResponse, status_code=status.HTTP_201_CREATED
+    "", response_model=StockMovementResponse, status_code=status.HTTP_201_CREATED  # 👈 changed
 )
 def create_movement(
     payload: StockMovementCreate,
@@ -139,9 +140,12 @@ def create_movement(
 ):
     """
     Create a stock movement and automatically update the product's stock.
-    - IN  → adds quantity to product
-    - OUT → subtracts quantity (validates availability)
-    - ADJUSTMENT → sets product quantity TO the given quantity
+    - IN          → adds `quantity` to product (quantity must be > 0)
+    - OUT         → subtracts `quantity` (must be > 0, and <= current stock)
+    - ADJUSTMENT  → applies a SIGNED DELTA:
+                       +5  = add 5 units (e.g. found extra)
+                       -5  = remove 5 units (e.g. damaged)
+                        0  = rejected
     """
     product = db.query(Product).filter(Product.id == payload.product_id).first()
     if not product:
@@ -149,21 +153,49 @@ def create_movement(
 
     quantity_before = product.quantity
 
+    # ---------- IN ----------
     if payload.movement_type == MovementType.IN:
+        if payload.quantity <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail="IN movement requires a positive quantity.",
+            )
         quantity_after = quantity_before + payload.quantity
+
+    # ---------- OUT ----------
     elif payload.movement_type == MovementType.OUT:
+        if payload.quantity <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail="OUT movement requires a positive quantity.",
+            )
         if payload.quantity > quantity_before:
             raise HTTPException(
                 status_code=400,
                 detail=f"Insufficient stock. Available: {quantity_before}",
             )
         quantity_after = quantity_before - payload.quantity
-    else:  # ADJUSTMENT — sets the absolute level
-        quantity_after = payload.quantity
 
-    # Calculate total cost (only meaningful for IN movements)
+    # ---------- ADJUSTMENT (signed delta) ----------
+    else:
+        if payload.quantity == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="ADJUSTMENT cannot be zero. Use a positive or negative number.",
+            )
+        quantity_after = quantity_before + payload.quantity
+        if quantity_after < 0:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Adjustment would result in negative stock. "
+                    f"Current: {quantity_before}, requested delta: {payload.quantity}"
+                ),
+            )
+
+    # Calculate total cost (only meaningful for IN movements with positive quantity)
     total_cost = None
-    if payload.unit_cost is not None:
+    if payload.unit_cost is not None and payload.quantity > 0:
         total_cost = round(payload.unit_cost * payload.quantity, 2)
 
     movement = StockMovement(
