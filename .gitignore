@@ -15,9 +15,13 @@ backend/.env
 frontend/.env
 frontend/.env.production
 
-# Database
+# Database (SQLite + lock/journal files)
 *.db
+*.db-shm
+*.db-wal
+*.db-journal
 *.sqlite
+*.sqlite3
 inventory.db
 
 # Node
