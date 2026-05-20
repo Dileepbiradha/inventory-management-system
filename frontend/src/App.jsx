@@ -8,7 +8,7 @@ import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
 import Dashboard from './pages/Dashboard'
 import Products from './pages/Products'
-import Movements from './pages/Movements'
+import StockMovements from './pages/StockMovements'
 import Settings from './pages/Settings'
 import Categories from './pages/Categories'
 
@@ -30,7 +30,7 @@ export default function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/products" element={<Products />} />
         <Route path="/categories" element={<Categories />} />
-        <Route path="/stock-movements" element={<Movements />} />
+        <Route path="/movements" element={<StockMovements />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
 
