@@ -38,3 +38,10 @@ frontend/dist/
 # OS
 .DS_Store
 Thumbs.db
+# Sensitive scripts (DB credentials)
+backend/fix2.py
+backend/fix_render.py
+backend/verify_demo99.py
+backend/.env
+frontend/.env
+frontend/.env.production
