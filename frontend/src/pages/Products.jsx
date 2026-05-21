@@ -149,7 +149,7 @@ export default function Products() {
                   <th className="text-left p-4">Product</th>
                   <th className="text-left p-4">SKU</th>
                   <th className="text-left p-4">Price</th>
-                  <th className="text-left p-4">Stock</th>
+                  <th className="text-left p-4">Status</th>
                   <th className="text-left p-4">Quantity</th>
                   <th className="text-right p-4">Actions</th>
                 </tr>
@@ -186,11 +186,15 @@ export default function Products() {
                             : 'bg-red-100 text-red-700'
                         }`}
                       >
-                        {p.stock} in stock
+                        {p.stock > 10
+                          ? 'In Stock'
+                          : p.stock > 0
+                          ? 'Low Stock'
+                          : 'Out of Stock'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-gray-700">
-                      {p.quantity ?? '—'}
+                    <td className="px-4 py-3 text-gray-900 font-medium">
+                      {p.stock ?? 0}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
