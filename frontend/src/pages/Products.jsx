@@ -38,7 +38,6 @@ export default function Products() {
         page,
         limit: PAGE_SIZE,
       })
-      // Adjust based on your API response shape
       setProducts(res.data.items || res.data)
       setTotalPages(res.data.total_pages || 1)
     } catch (err) {
@@ -48,7 +47,6 @@ export default function Products() {
     }
   }
 
-  // Debounced search
   useEffect(() => {
     const t = setTimeout(() => {
       setPage(1)
@@ -146,13 +144,14 @@ export default function Products() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-gray-600 text-left">
+              <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 font-medium">Product</th>
-                  <th className="px-4 py-3 font-medium">SKU</th>
-                  <th className="px-4 py-3 font-medium">Price</th>
-                  <th className="px-4 py-3 font-medium">Stock</th>
-                  <th className="px-4 py-3 font-medium text-right">Actions</th>
+                  <th className="text-left p-4">Product</th>
+                  <th className="text-left p-4">SKU</th>
+                  <th className="text-left p-4">Price</th>
+                  <th className="text-left p-4">Stock</th>
+                  <th className="text-left p-4">Quantity</th>
+                  <th className="text-right p-4">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -189,6 +188,9 @@ export default function Products() {
                       >
                         {p.stock} in stock
                       </span>
+                    </td>
+                    <td className="px-4 py-3 text-gray-700">
+                      {p.quantity ?? '—'}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
