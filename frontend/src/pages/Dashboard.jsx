@@ -1,161 +1,157 @@
-import { useState, useEffect } from "react";
-import Modal from '../components/Modal'
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import axios from "axios";
 
-const API_URL = import.meta.env.VITE_API_URL || 
-  "https://inventory-management-system-backend-hyu1.onrender.com";
-  
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+
 export default function Dashboard() {
-  const [products, setProducts] = useState([]);
-  const [movements, setMovements] = useState([]);
+  const navigate = useNavigate();
+  const [stats, setStats] = useState({
+    totalProducts: 0,
+    lowStock: 0,
+    outOfStock: 0,
+    inventoryValue: 0,
+    totalMovements: 0,
+  });
   const [loading, setLoading] = useState(true);
-  const [modalType, setModalType] = useState(null);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    const headers = { Authorization: `Bearer ${token}` };
-    Promise.all([
-      fetch(`${API_URL}/api/products`, { headers }).then((r) => r.json()),
-      fetch(`${API_URL}/api/movements`, { headers }).then((r) => r.json()),
-    ])
-      .then(([prodData, movData]) => {
-        setProducts(prodData || []);
-        setMovements(movData || []);
-        setLoading(false);
-      })
-      .catch((err) => { console.error(err); setLoading(false); });
+    fetchStats();
   }, []);
 
-  const lowStockItems = products.filter((p) => p.quantity <= (p.min_stock || 10));
-  const inventoryValue = products.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 0), 0);
+  const fetchStats = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+
+      // Fetch products
+      const productsRes = await axios.get(`${API_URL}/products`, config);
+      const products = productsRes.data || [];
+
+      // Fetch movements
+      let movements = [];
+      try {
+        const movementsRes = await axios.get(`${API_URL}/stock-movements`, config);
+        movements = movementsRes.data || [];
+      } catch (e) {
+        movements = [];
+      }
+
+      // Calculate stats
+      const totalProducts = products.length;
+      const lowStock = products.filter(
+        (p) => p.quantity > 0 && p.quantity <= (p.lowStockThreshold || 10)
+      ).length;
+      const outOfStock = products.filter((p) => p.quantity === 0).length;
+      const inventoryValue = products.reduce(
+        (sum, p) => sum + (p.price || 0) * (p.quantity || 0),
+        0
+      );
+
+      setStats({
+        totalProducts,
+        lowStock,
+        outOfStock,
+        inventoryValue,
+        totalMovements: movements.length,
+      });
+    } catch (error) {
+      console.error("Error fetching stats:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cards = [
+    {
+      title: "Total Products",
+      value: stats.totalProducts,
+      icon: "📦",
+      color: "blue",
+      bg: "bg-blue-100",
+      onClick: () => navigate("/products"),
+    },
+    {
+      title: "Low Stock Items",
+      value: stats.lowStock,
+      icon: "⚠️",
+      color: "yellow",
+      bg: "bg-yellow-100",
+      onClick: () => navigate("/products?filter=low"),
+    },
+    {
+      title: "Out of Stock",
+      value: stats.outOfStock,
+      icon: "❌",
+      color: "red",
+      bg: "bg-red-100",
+      onClick: () => navigate("/products?filter=out"),
+    },
+    {
+      title: "Inventory Value",
+      value: `$${stats.inventoryValue.toLocaleString("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`,
+      icon: "💰",
+      color: "green",
+      bg: "bg-green-100",
+      onClick: () => navigate("/products"),
+    },
+    {
+      title: "Total Movements",
+      value: stats.totalMovements,
+      icon: "🔄",
+      color: "purple",
+      bg: "bg-purple-100",
+      onClick: () => navigate("/stock-movements"),
+    },
+  ];
+
+  if (loading) {
+    return (
+      <div className="p-8">
+        <p className="text-gray-500">Loading dashboard...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-8">
-      <h1 className="text-3xl font-bold mb-2">Welcome back! 👋</h1>
-      <p className="text-gray-600 mb-8">Here's what's happening with your inventory today.</p>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <StatCard title="Total Products" value={products.length} icon="📦" color="bg-blue-100"
-          onClick={() => setModalType("products")} />
-        <StatCard title="Low Stock Items" value={lowStockItems.length} icon="⚠️" color="bg-orange-100"
-          onClick={() => setModalType("lowStock")} />
-        <StatCard title="Inventory Value" value={`$${inventoryValue.toLocaleString()}`} icon="💰" color="bg-green-100"
-          onClick={() => setModalType("value")} />
-        <StatCard title="Total Movements" value={movements.length} icon="🔄" color="bg-purple-100"
-          onClick={() => setModalType("movements")} />
+      {/* Welcome Section */}
+      <div className="mb-8">
+        <h1 className="text-4xl font-bold text-gray-900">
+          Welcome back! <span className="inline-block">👋</span>
+        </h1>
+        <p className="text-gray-500 mt-2">
+          Here's what's happening with your inventory today.
+        </p>
       </div>
 
-      <Modal isOpen={modalType === "products"} onClose={() => setModalType(null)}
-        title={`📦 All Products (${products.length})`}>
-        <ProductTable products={products} />
-      </Modal>
-
-      <Modal isOpen={modalType === "lowStock"} onClose={() => setModalType(null)}
-        title={`⚠️ Low Stock Items (${lowStockItems.length})`}>
-        {lowStockItems.length === 0 ? (
-          <p className="text-green-600">✅ All products are well-stocked!</p>
-        ) : (<ProductTable products={lowStockItems} highlight />)}
-      </Modal>
-
-      <Modal isOpen={modalType === "value"} onClose={() => setModalType(null)} title="💰 Inventory Value Breakdown">
-        <div className="mb-4 p-4 bg-green-50 rounded-lg">
-          <div className="text-sm text-gray-600">Total Value</div>
-          <div className="text-3xl font-bold text-green-700">${inventoryValue.toLocaleString()}</div>
-        </div>
-        <table className="w-full">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="text-left p-2">Product</th>
-              <th className="text-right p-2">Qty</th>
-              <th className="text-right p-2">Price</th>
-              <th className="text-right p-2">Value</th>
-            </tr>
-          </thead>
-          <tbody>
-            {products.map((p) => (
-              <tr key={p.id} className="border-b">
-                <td className="p-2">{p.name}</td>
-                <td className="text-right p-2">{p.quantity}</td>
-                <td className="text-right p-2">${p.price}</td>
-                <td className="text-right p-2 font-semibold">
-                  ${((p.price || 0) * (p.quantity || 0)).toLocaleString()}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </Modal>
-
-      <Modal isOpen={modalType === "movements"} onClose={() => setModalType(null)}
-        title={`🔄 Stock Movements (${movements.length})`}>
-        {movements.length === 0 ? (
-          <p className="text-gray-500">No movements recorded yet.</p>
-        ) : (
-          <div className="space-y-2">
-            {movements.map((m) => (
-              <div key={m.id} className="flex justify-between p-3 border rounded-lg">
-                <div>
-                  <div className="font-medium">{m.product_name || `Product #${m.product_id}`}</div>
-                  <div className="text-sm text-gray-500">
-                    {m.reason || "No reason"} • {new Date(m.created_at).toLocaleString()}
-                  </div>
-                </div>
-                <div className={`font-bold ${m.quantity > 0 ? "text-green-600" : "text-red-600"}`}>
-                  {m.quantity > 0 ? "+" : ""}{m.quantity}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Modal>
-    </div>
-  );
-}
-
-// ✅ Stat card — number is now a clickable hyperlink (no "Click for details" text)
-function StatCard({ title, value, icon, color, onClick }) {
-  return (
-    <div className="bg-white p-6 rounded-xl shadow-sm hover:shadow-lg transition-all">
-      <div className="flex justify-between items-start">
-        <div>
-          <p className="text-gray-600 text-sm">{title}</p>
-          <button
-            onClick={onClick}
-            className="text-3xl font-bold mt-2 text-blue-600 hover:text-blue-800 hover:underline focus:outline-none cursor-pointer"
+      {/* KPI Cards Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+        {cards.map((card, idx) => (
+          <div
+            key={idx}
+            onClick={card.onClick}
+            className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 cursor-pointer hover:shadow-lg hover:-translate-y-1 transition-all duration-200"
           >
-            {value}
-          </button>
-        </div>
-        <div className={`${color} p-3 rounded-lg text-2xl`}>{icon}</div>
+            <div className="flex justify-between items-start mb-4">
+              <p className="text-sm text-gray-500 font-medium">{card.title}</p>
+              <div
+                className={`${card.bg} w-10 h-10 rounded-lg flex items-center justify-center text-xl`}
+              >
+                {card.icon}
+              </div>
+            </div>
+            <p
+              className={`text-3xl font-bold text-${card.color}-600 underline decoration-2 decoration-${card.color}-400 underline-offset-4 hover:decoration-${card.color}-600`}
+            >
+              {card.value}
+            </p>
+          </div>
+        ))}
       </div>
     </div>
-  );
-}
-
-function ProductTable({ products, highlight = false }) {
-  return (
-    <table className="w-full">
-      <thead className="bg-gray-50">
-        <tr>
-          <th className="text-left p-2">Name</th>
-          <th className="text-left p-2">SKU</th>
-          <th className="text-right p-2">Quantity</th>
-          <th className="text-right p-2">Price</th>
-        </tr>
-      </thead>
-      <tbody>
-        {products.map((p) => (
-          <tr key={p.id} className={`border-b ${highlight ? "bg-orange-50" : ""}`}>
-            <td className="p-2 font-medium">{p.name}</td>
-            <td className="p-2 text-gray-600">{p.sku}</td>
-            <td className="text-right p-2">
-              <span className={p.quantity <= (p.min_stock || 10) ? "text-orange-600 font-bold" : ""}>
-                {p.quantity}
-              </span>
-            </td>
-            <td className="text-right p-2">${p.price}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
   );
 }
