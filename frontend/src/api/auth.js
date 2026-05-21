@@ -24,7 +24,7 @@ export const authAPI = {
     formData.append('password', password);
     formData.append('grant_type', 'password');
 
-    return axios.post(`${API_URL}/auth/login`, formData, {
+    return axios.post(`${API_URL}/api/auth/login`, formData, {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     });
   },
