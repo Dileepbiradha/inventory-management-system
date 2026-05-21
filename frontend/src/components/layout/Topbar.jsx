@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bell, LogOut, User, ChevronDown, AlertTriangle, PackageX } from 'lucide-react'
+import { Bell, LogOut, User, ChevronDown, Search, PackageX, X } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
 const API_URL = import.meta.env.VITE_API_URL ||
@@ -12,74 +12,60 @@ export default function Topbar() {
 
   const [open, setOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   const [products, setProducts] = useState([])
 
   const ref = useRef(null)
   const notifRef = useRef(null)
+  const searchRef = useRef(null)
 
   useEffect(() => {
     let mounted = true
-
     const fetchProducts = async () => {
       try {
         const token = localStorage.getItem('token')
-        if (!token) {
-          console.log('[Topbar] No token, skipping product fetch')
-          return
-        }
-
+        if (!token) return
         const res = await fetch(`${API_URL}/api/products`, {
           headers: { Authorization: `Bearer ${token}` },
         })
-
-        console.log('[Topbar] Products API status:', res.status)
-
-        if (!res.ok) {
-          console.warn('[Topbar] Products fetch failed:', res.status)
-          return
-        }
-
+        if (!res.ok) return
         const data = await res.json()
         const list = Array.isArray(data) ? data : (data?.products || [])
         if (mounted) setProducts(list)
-      } catch (err) {
-        console.error('[Topbar] Notifications fetch error:', err)
-      }
+      } catch (err) { console.error('[Topbar]', err) }
     }
-
     fetchProducts()
     const interval = setInterval(fetchProducts, 60000)
-
-    return () => {
-      mounted = false
-      clearInterval(interval)
-    }
+    return () => { mounted = false; clearInterval(interval) }
   }, [])
 
   useEffect(() => {
     const handler = (e) => {
       if (ref.current && !ref.current.contains(e.target)) setOpen(false)
       if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false)
+      if (searchRef.current && !searchRef.current.contains(e.target)) setSearchOpen(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  const handleLogout = () => {
-    logout()
-    navigate('/login')
-  }
+  const handleLogout = () => { logout(); navigate('/login') }
 
-  // Safe filtering — never crashes
   const safeProducts = Array.isArray(products) ? products : []
+
+  // ✅ ONLY OUT-OF-STOCK alerts
   const outOfStock = safeProducts.filter((p) => p && Number(p.quantity) === 0)
-  const lowStock = safeProducts.filter((p) => {
-    if (!p) return false
-    const qty = Number(p.quantity) || 0
-    const min = Number(p.min_stock ?? p.minStock ?? 10)
-    return qty > 0 && qty <= min
-  })
-  const totalAlerts = outOfStock.length + lowStock.length
+  const totalAlerts = outOfStock.length
+
+  // 🔍 Search results
+  const searchResults = searchQuery
+    ? safeProducts.filter(
+        (p) =>
+          p.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          p.sku?.toLowerCase().includes(searchQuery.toLowerCase())
+      ).slice(0, 8)
+    : []
 
   return (
     <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between sticky top-0 z-10">
@@ -90,8 +76,64 @@ export default function Topbar() {
         <p className="text-xs text-gray-500">Here's what's happening today</p>
       </div>
 
-      <div className="flex items-center gap-3">
-        {/* 🔔 Notifications */}
+      <div className="flex items-center gap-2">
+        {/* 🔍 SEARCH ICON (left of bell) */}
+        <div className="relative" ref={searchRef}>
+          <button
+            onClick={() => setSearchOpen(!searchOpen)}
+            className="p-2 hover:bg-gray-100 rounded-lg transition"
+            aria-label="Search"
+          >
+            <Search className="w-5 h-5 text-gray-600" />
+          </button>
+
+          {searchOpen && (
+            <div className="absolute right-0 mt-2 w-96 bg-white border border-gray-200 rounded-xl shadow-2xl z-30 overflow-hidden">
+              <div className="p-3 border-b flex items-center gap-2">
+                <Search className="w-4 h-4 text-gray-400" />
+                <input
+                  autoFocus
+                  type="text"
+                  placeholder="Search products by name or SKU..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="flex-1 outline-none text-sm"
+                />
+                {searchQuery && (
+                  <button onClick={() => setSearchQuery('')}>
+                    <X className="w-4 h-4 text-gray-400 hover:text-gray-600" />
+                  </button>
+                )}
+              </div>
+              <div className="max-h-80 overflow-y-auto">
+                {!searchQuery ? (
+                  <div className="p-6 text-center text-sm text-gray-500">Start typing to search...</div>
+                ) : searchResults.length === 0 ? (
+                  <div className="p-6 text-center text-sm text-gray-500">No products found</div>
+                ) : (
+                  searchResults.map((p) => (
+                    <div
+                      key={p.id}
+                      onClick={() => { setSearchOpen(false); setSearchQuery(''); navigate('/products') }}
+                      className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b last:border-0 flex justify-between items-center"
+                    >
+                      <div>
+                        <div className="font-medium text-gray-900">{p.name}</div>
+                        <div className="text-xs text-gray-500">SKU: {p.sku}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-semibold text-sm">${p.price}</div>
+                        <div className="text-xs text-gray-500">Qty: {p.quantity}</div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* 🔔 NOTIFICATIONS — only Out of Stock */}
         <div className="relative" ref={notifRef}>
           <button
             onClick={() => setNotifOpen(!notifOpen)}
@@ -107,8 +149,8 @@ export default function Topbar() {
 
           {notifOpen && (
             <div className="absolute right-0 mt-2 w-96 bg-white border border-gray-200 rounded-xl shadow-2xl z-30 overflow-hidden">
-              <div className="px-4 py-3 border-b bg-gradient-to-r from-blue-50 to-indigo-50 flex justify-between items-center">
-                <h3 className="font-bold text-gray-900">Notifications</h3>
+              <div className="px-4 py-3 border-b bg-gradient-to-r from-red-50 to-orange-50 flex justify-between items-center">
+                <h3 className="font-bold text-gray-900">Out of Stock Alerts</h3>
                 <span className="text-xs text-gray-600 font-medium">
                   {totalAlerts} alert{totalAlerts !== 1 ? 's' : ''}
                 </span>
@@ -119,58 +161,30 @@ export default function Topbar() {
                   <div className="p-8 text-center text-gray-500">
                     <div className="text-4xl mb-2">✅</div>
                     <p className="font-medium text-gray-700">All good!</p>
-                    <p className="text-sm">No stock alerts right now.</p>
+                    <p className="text-sm">No products out of stock.</p>
                   </div>
                 ) : (
-                  <>
-                    {outOfStock.length > 0 && (
-                      <div>
-                        <div className="px-4 py-2 bg-red-50 text-red-700 text-xs font-bold uppercase flex items-center gap-2">
-                          <PackageX className="w-3.5 h-3.5" />
-                          Out of Stock ({outOfStock.length})
-                        </div>
-                        {outOfStock.map((p) => (
-                          <div
-                            key={p.id}
-                            onClick={() => { setNotifOpen(false); navigate('/products') }}
-                            className="px-4 py-3 border-b hover:bg-gray-50 cursor-pointer"
-                          >
-                            <div className="flex justify-between items-start gap-2">
-                              <div className="flex-1 min-w-0">
-                                <div className="font-medium text-gray-900 truncate">{p.name}</div>
-                                <div className="text-xs text-gray-500">SKU: {p.sku || 'N/A'}</div>
-                              </div>
-                              <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-bold rounded-full">0 left</span>
-                            </div>
+                  <div>
+                    <div className="px-4 py-2 bg-red-50 text-red-700 text-xs font-bold uppercase flex items-center gap-2">
+                      <PackageX className="w-3.5 h-3.5" />
+                      Out of Stock ({outOfStock.length})
+                    </div>
+                    {outOfStock.map((p) => (
+                      <div
+                        key={p.id}
+                        onClick={() => { setNotifOpen(false); navigate('/products') }}
+                        className="px-4 py-3 border-b hover:bg-gray-50 cursor-pointer"
+                      >
+                        <div className="flex justify-between items-start gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-gray-900 truncate">{p.name}</div>
+                            <div className="text-xs text-gray-500">SKU: {p.sku || 'N/A'}</div>
                           </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {lowStock.length > 0 && (
-                      <div>
-                        <div className="px-4 py-2 bg-amber-50 text-amber-700 text-xs font-bold uppercase flex items-center gap-2">
-                          <AlertTriangle className="w-3.5 h-3.5" />
-                          Low Stock ({lowStock.length})
+                          <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-bold rounded-full">0 left</span>
                         </div>
-                        {lowStock.map((p) => (
-                          <div
-                            key={p.id}
-                            onClick={() => { setNotifOpen(false); navigate('/products') }}
-                            className="px-4 py-3 border-b hover:bg-gray-50 cursor-pointer"
-                          >
-                            <div className="flex justify-between items-start gap-2">
-                              <div className="flex-1 min-w-0">
-                                <div className="font-medium text-gray-900 truncate">{p.name}</div>
-                                <div className="text-xs text-gray-500">SKU: {p.sku || 'N/A'}</div>
-                              </div>
-                              <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-bold rounded-full">{p.quantity} left</span>
-                            </div>
-                          </div>
-                        ))}
                       </div>
-                    )}
-                  </>
+                    ))}
+                  </div>
                 )}
               </div>
 
@@ -206,16 +220,12 @@ export default function Topbar() {
                 <p className="text-sm font-medium text-gray-900">{user?.full_name}</p>
                 <p className="text-xs text-gray-500">{user?.email}</p>
               </div>
-              <button
-                onClick={() => navigate('/profile')}
-                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-              >
+              <button onClick={() => navigate('/profile')}
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
                 <User className="w-4 h-4" /> Profile
               </button>
-              <button
-                onClick={handleLogout}
-                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-              >
+              <button onClick={handleLogout}
+                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2">
                 <LogOut className="w-4 h-4" /> Logout
               </button>
             </div>
