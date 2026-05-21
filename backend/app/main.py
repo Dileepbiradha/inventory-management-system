@@ -58,8 +58,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# 🔧 Disable automatic trailing-slash redirects (fixes 404 on POST /movements)
-app.router.redirect_slashes = False
+# 🔧 Disable automatic trailing-slash redirects (fixes 404/307 on POST /movements)
+app.router.redirect_slashes = False  # ⬅️ ADD THIS LINE
+
 
 # ---------------------------------------------------------------------
 # CORS

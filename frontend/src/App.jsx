@@ -1,7 +1,6 @@
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import ProtectedRoute from './components/ProtectedRoute'
 import DashboardLayout from './components/layout/DashboardLayout'
-
 import Login from './pages/Login'
 import Register from './pages/Register'
 import ForgotPassword from './pages/ForgotPassword'
@@ -20,21 +19,18 @@ export default function App() {
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
 
-      <Route
-        element={
-          <ProtectedRoute>
-            <DashboardLayout />
-          </ProtectedRoute>
-        }
-      >
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/products" element={<Products />} />
-        <Route path="/categories" element={<Categories />} />
-        <Route path="/movements" element={<StockMovements />} />
-        <Route path="/settings" element={<Settings />} />
+      <Route element={<ProtectedRoute />}>
+        <Route element={<DashboardLayout />}>
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/products" element={<Products />} />
+          <Route path="/categories" element={<Categories />} />
+          <Route path="/movements" element={<StockMovements />} />
+          <Route path="/settings" element={<Settings />} />
+        </Route>
       </Route>
 
-      <Route path="*" element={<Login />} />
+      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   )
 }

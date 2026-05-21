@@ -37,7 +37,7 @@ def register(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
-    """Register a new user and send a verification email."""
+    """Register a new user (auto-verified in dev mode)."""
 
     if user_crud.get_user_by_username(db, user.username):
         raise HTTPException(
@@ -53,13 +53,10 @@ def register(
 
     new_user = user_crud.create_user(db, user)
 
-    # 📧 Send verification email in background
-    background_tasks.add_task(
-        send_verification_email,
-        email=new_user.email,
-        username=new_user.username,
-        verification_token=new_user.verification_token,
-    )
+    # 🚧 DEV MODE — auto-verify, skip email
+    new_user.is_verified = True
+    db.commit()
+    db.refresh(new_user)
 
     return new_user
 
@@ -72,7 +69,7 @@ def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
 ):
-    """Login and return JWT token (only if verified)."""
+    """Login and return JWT token."""
 
     user = user_crud.authenticate_user(db, form_data.username, form_data.password)
 
@@ -89,12 +86,12 @@ def login(
             detail="Inactive user",
         )
 
-    # 🚫 Block unverified accounts
-    if not user.is_verified:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Email not verified. Please check your inbox for the verification link.",
-        )
+    # 🚧 DEV MODE — verification check disabled
+    # if not user.is_verified:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_403_FORBIDDEN,
+    #         detail="Email not verified. Please check your inbox for the verification link.",
+    #     )
 
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
@@ -118,7 +115,6 @@ def get_me(current_user: User = Depends(get_current_user)):
 # ============================================
 @router.get("/verify-email/{token}", response_model=MessageResponse)
 def verify_email_get(token: str, db: Session = Depends(get_db)):
-    """Verify email using token from email link."""
     user = user_crud.verify_email_token(db, token)
 
     if not user:
@@ -141,7 +137,6 @@ def verify_email_post(
     request: VerifyEmailRequest,
     db: Session = Depends(get_db),
 ):
-    """Verify email using token (POST version)."""
     user = user_crud.verify_email_token(db, request.token)
 
     if not user:
@@ -165,8 +160,6 @@ def resend_verification(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
-    """Resend the email verification link."""
-
     result = user_crud.regenerate_verification_token(db, request.email)
 
     if result and not result["already_verified"] and result["token"]:
