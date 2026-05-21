@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { Pencil, Trash2, Search } from "lucide-react";
 import axios from "axios";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
@@ -7,15 +9,10 @@ export default function Products() {
   const [products, setProducts] = useState([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
-  const [editingProduct, setEditingProduct] = useState(null);
-  const [showModal, setShowModal] = useState(false);
-  const [formData, setFormData] = useState({
-    name: "",
-    sku: "",
-    quantity: 0,
-    price: 0,
-    lowStockThreshold: 10,
-  });
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  const filter = searchParams.get("filter");
 
   useEffect(() => {
     fetchProducts();
@@ -27,158 +24,155 @@ export default function Products() {
       const res = await axios.get(`${API_URL}/products`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setProducts(res.data || []);
-    } catch (error) {
-      console.error("Error fetching products:", error);
+      setProducts(res.data);
+    } catch (err) {
+      console.error("Failed to fetch products:", err);
     } finally {
       setLoading(false);
     }
   };
 
+  const getStatus = (qty) => {
+    if (qty === 0) return { label: "Out of Stock", color: "bg-red-100 text-red-700" };
+    if (qty <= 10) return { label: "Low Stock", color: "bg-yellow-100 text-yellow-700" };
+    return { label: "In Stock", color: "bg-green-100 text-green-700" };
+  };
+
+  const filteredProducts = useMemo(() => {
+    let list = products;
+
+    if (filter === "low-stock") {
+      list = list.filter((p) => p.quantity > 0 && p.quantity <= 10);
+    } else if (filter === "out-of-stock") {
+      list = list.filter((p) => p.quantity === 0);
+    }
+
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          p.sku.toLowerCase().includes(q)
+      );
+    }
+
+    return list;
+  }, [products, filter, search]);
+
   const handleEdit = (product) => {
-    setEditingProduct(product);
-    setFormData({
-      name: product.name || "",
-      sku: product.sku || "",
-      quantity: product.quantity || 0,
-      price: product.price || 0,
-      lowStockThreshold: product.lowStockThreshold || 10,
-    });
-    setShowModal(true);
+    navigate(`/products/edit/${product.id || product._id}`);
   };
 
   const handleDelete = async (id) => {
     if (!window.confirm("Are you sure you want to delete this product?")) return;
-
     try {
       const token = localStorage.getItem("token");
       await axios.delete(`${API_URL}/products/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      fetchProducts();
-    } catch (error) {
-      console.error("Error deleting product:", error);
+      setProducts((prev) => prev.filter((p) => (p.id || p._id) !== id));
+      alert("Product deleted successfully");
+    } catch (err) {
+      console.error("Delete failed:", err);
       alert("Failed to delete product");
     }
   };
 
-  const handleUpdate = async (e) => {
-    e.preventDefault();
-    try {
-      const token = localStorage.getItem("token");
-      await axios.put(
-        `${API_URL}/products/${editingProduct._id}`,
-        formData,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setShowModal(false);
-      setEditingProduct(null);
-      fetchProducts();
-    } catch (error) {
-      console.error("Error updating product:", error);
-      alert("Failed to update product");
-    }
-  };
-
-  const getStatus = (qty, threshold = 10) => {
-    if (qty === 0)
-      return { label: "Out of Stock", style: "bg-red-100 text-red-700" };
-    if (qty <= threshold)
-      return { label: "Low Stock", style: "bg-yellow-100 text-yellow-700" };
-    return { label: "In Stock", style: "bg-green-100 text-green-700" };
-  };
-
-  const filtered = products.filter(
-    (p) =>
-      p.name?.toLowerCase().includes(search.toLowerCase()) ||
-      p.sku?.toLowerCase().includes(search.toLowerCase())
-  );
-
-  if (loading) {
-    return (
-      <div className="p-8">
-        <p className="text-gray-500">Loading products...</p>
-      </div>
-    );
-  }
-
   return (
     <div className="p-8">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-4xl font-bold text-gray-900">Products</h1>
-        <p className="text-gray-500 mt-1">Manage your inventory products</p>
-      </div>
+      <h1 className="text-4xl font-bold mb-1">Products</h1>
+      <p className="text-gray-500 mb-6">Manage your inventory products</p>
 
-      {/* Search */}
-      <div className="mb-6">
+      {/* Search bar */}
+      <div className="relative mb-6">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
         <input
           type="text"
-          placeholder="🔍 Search by name or SKU..."
+          placeholder="Search by name or SKU..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-400 focus:outline-none"
+          className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
 
+      {/* Filter indicator */}
+      {filter && (
+        <div className="mb-4 flex items-center gap-2">
+          <span className="text-sm text-gray-600">Filtered by:</span>
+          <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
+            {filter === "low-stock" ? "Low Stock" : "Out of Stock"}
+          </span>
+          <button
+            onClick={() => navigate("/products")}
+            className="text-sm text-red-500 hover:underline"
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
       {/* Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <table className="w-full">
-          <thead className="border-b border-gray-100">
+          <thead className="bg-gray-50">
             <tr className="text-left text-gray-600 text-sm">
-              <th className="px-6 py-4">Name</th>
-              <th className="px-6 py-4">SKU</th>
-              <th className="px-6 py-4 text-right">Quantity</th>
-              <th className="px-6 py-4 text-right">Price</th>
-              <th className="px-6 py-4 text-center">Status</th>
-              <th className="px-6 py-4 text-center">Actions</th>
+              <th className="py-4 px-6 font-semibold">Name</th>
+              <th className="py-4 px-6 font-semibold">SKU</th>
+              <th className="py-4 px-6 font-semibold text-center">Quantity</th>
+              <th className="py-4 px-6 font-semibold text-center">Price</th>
+              <th className="py-4 px-6 font-semibold text-center">Status</th>
+              <th className="py-4 px-6 font-semibold text-center">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 ? (
+            {loading ? (
+              <tr>
+                <td colSpan="6" className="text-center py-8 text-gray-400">
+                  Loading...
+                </td>
+              </tr>
+            ) : filteredProducts.length === 0 ? (
               <tr>
                 <td colSpan="6" className="text-center py-8 text-gray-400">
                   No products found
                 </td>
               </tr>
             ) : (
-              filtered.map((p) => {
-                const status = getStatus(p.quantity, p.lowStockThreshold);
+              filteredProducts.map((p) => {
+                const status = getStatus(p.quantity);
+                const id = p.id || p._id;
                 return (
-                  <tr
-                    key={p._id}
-                    className="border-b border-gray-50 hover:bg-gray-50"
-                  >
-                    <td className="px-6 py-4 font-semibold text-gray-900">
-                      {p.name}
-                    </td>
-                    <td className="px-6 py-4 text-gray-600">{p.sku}</td>
-                    <td className="px-6 py-4 text-right font-medium">
+                  <tr key={id} className="border-t border-gray-100 hover:bg-gray-50">
+                    <td className="py-4 px-6 font-medium">{p.name}</td>
+                    <td className="py-4 px-6 text-gray-600">{p.sku}</td>
+                    <td className="py-4 px-6 text-center font-semibold">
                       {p.quantity}
                     </td>
-                    <td className="px-6 py-4 text-right font-medium">
+                    <td className="py-4 px-6 text-center font-semibold">
                       ${p.price}
                     </td>
-                    <td className="px-6 py-4 text-center">
+                    <td className="py-4 px-6 text-center">
                       <span
-                        className={`px-3 py-1 rounded-full text-xs font-medium ${status.style}`}
+                        className={`px-3 py-1 rounded-full text-xs font-medium ${status.color}`}
                       >
                         {status.label}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-center">
+                    <td className="py-4 px-6">
                       <div className="flex justify-center gap-2">
                         <button
                           onClick={() => handleEdit(p)}
-                          className="px-3 py-1 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition"
+                          className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition"
+                          title="Edit"
                         >
-                          ✏️ Edit
+                          <Pencil size={16} />
                         </button>
                         <button
-                          onClick={() => handleDelete(p._id)}
-                          className="px-3 py-1 bg-red-500 text-white rounded-lg text-sm hover:bg-red-600 transition"
+                          onClick={() => handleDelete(id)}
+                          className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition"
+                          title="Delete"
                         >
-                          🗑️ Delete
+                          <Trash2 size={16} />
                         </button>
                       </div>
                     </td>
@@ -189,116 +183,6 @@ export default function Products() {
           </tbody>
         </table>
       </div>
-
-      {/* Edit Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
-            <h2 className="text-2xl font-bold mb-4">Edit Product</h2>
-            <form onSubmit={handleUpdate} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Name
-                </label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  SKU
-                </label>
-                <input
-                  type="text"
-                  value={formData.sku}
-                  onChange={(e) =>
-                    setFormData({ ...formData, sku: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none"
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Quantity
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.quantity}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        quantity: Number(e.target.value),
-                      })
-                    }
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Price ($)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formData.price}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        price: Number(e.target.value),
-                      })
-                    }
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none"
-                    required
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Low Stock Threshold
-                </label>
-                <input
-                  type="number"
-                  value={formData.lowStockThreshold}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      lowStockThreshold: Number(e.target.value),
-                    })
-                  }
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none"
-                />
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowModal(false);
-                    setEditingProduct(null);
-                  }}
-                  className="px-4 py-2 border rounded-lg hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-                >
-                  Save Changes
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
