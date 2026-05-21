@@ -24,7 +24,7 @@ export default function Dashboard() {
 
     Promise.all([
       fetch(`${API_URL}/api/products`, { headers }).then((r) => r.json()),
-      fetch(`${API_URL}/api/stock-movements`, { headers }).then((r) => r.json()),
+      fetch(`https://inventory-management-system-backend-hyu1.onrender.com/api/movements`, { headers }).then((r) => r.json()),
     ])
       .then(([prodData, movData]) => {
         setProducts(prodData || []);
