@@ -1,10 +1,9 @@
-"use client";
 import { useState, useEffect } from "react";
-import Modal from "@/components/Modal";
+import Modal from '../components/Modal'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 
+const API_URL = import.meta.env.VITE_API_URL || 
   "https://inventory-management-system-backend-hyu1.onrender.com";
-
+  
 export default function Dashboard() {
   // Data states
   const [products, setProducts] = useState([]);
