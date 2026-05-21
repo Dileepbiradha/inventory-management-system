@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import axios from "axios";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 export default function Dashboard() {
-  const navigate = useNavigate();
   const [stats, setStats] = useState({
     totalProducts: 0,
     lowStock: 0,
@@ -16,142 +15,98 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await axios.get(`${API_URL}/api/dashboard/stats`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setStats(res.data);
+      } catch (err) {
+        console.error("Failed to fetch stats:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
     fetchStats();
   }, []);
 
-  const fetchStats = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-
-      // Fetch products
-      const productsRes = await axios.get(`${API_URL}/products`, config);
-      const products = productsRes.data || [];
-
-      // Fetch movements
-      let movements = [];
-      try {
-        const movementsRes = await axios.get(`${API_URL}/stock-movements`, config);
-        movements = movementsRes.data || [];
-      } catch (e) {
-        movements = [];
-      }
-
-      // Calculate stats
-      const totalProducts = products.length;
-      const lowStock = products.filter(
-        (p) => p.quantity > 0 && p.quantity <= (p.lowStockThreshold || 10)
-      ).length;
-      const outOfStock = products.filter((p) => p.quantity === 0).length;
-      const inventoryValue = products.reduce(
-        (sum, p) => sum + (p.price || 0) * (p.quantity || 0),
-        0
-      );
-
-      setStats({
-        totalProducts,
-        lowStock,
-        outOfStock,
-        inventoryValue,
-        totalMovements: movements.length,
-      });
-    } catch (error) {
-      console.error("Error fetching stats:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const cards = [
+  const kpis = [
     {
-      title: "Total Products",
+      label: "Total Products",
       value: stats.totalProducts,
-      icon: "📦",
-      color: "blue",
-      bg: "bg-blue-100",
-      onClick: () => navigate("/products"),
+      emoji: "📦",
+      bg: "bg-blue-50",
+      link: "/products",
     },
     {
-      title: "Low Stock Items",
+      label: "Low Stock Items",
       value: stats.lowStock,
-      icon: "⚠️",
-      color: "yellow",
-      bg: "bg-yellow-100",
-      onClick: () => navigate("/products?filter=low"),
+      emoji: "⚠️",
+      bg: "bg-yellow-50",
+      link: "/products?filter=low-stock",
     },
     {
-      title: "Out of Stock",
+      label: "Out of Stock",
       value: stats.outOfStock,
-      icon: "❌",
-      color: "red",
-      bg: "bg-red-100",
-      onClick: () => navigate("/products?filter=out"),
+      emoji: "🚫",
+      bg: "bg-red-50",
+      link: "/products?filter=out-of-stock",
     },
     {
-      title: "Inventory Value",
-      value: `$${stats.inventoryValue.toLocaleString("en-US", {
+      label: "Inventory Value",
+      value: `$${Number(stats.inventoryValue).toLocaleString(undefined, {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
       })}`,
-      icon: "💰",
-      color: "green",
-      bg: "bg-green-100",
-      onClick: () => navigate("/products"),
+      emoji: "💰",
+      bg: "bg-green-50",
+      link: "/products",
     },
     {
-      title: "Total Movements",
+      label: "Total Movements",
       value: stats.totalMovements,
-      icon: "🔄",
-      color: "purple",
-      bg: "bg-purple-100",
-      onClick: () => navigate("/stock-movements"),
+      emoji: "🔄",
+      bg: "bg-purple-50",
+      link: "/stock-movements",
     },
   ];
 
-  if (loading) {
-    return (
-      <div className="p-8">
-        <p className="text-gray-500">Loading dashboard...</p>
-      </div>
-    );
-  }
-
   return (
     <div className="p-8">
-      {/* Welcome Section */}
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold text-gray-900">
-          Welcome back! <span className="inline-block">👋</span>
-        </h1>
-        <p className="text-gray-500 mt-2">
-          Here's what's happening with your inventory today.
-        </p>
-      </div>
+      <h1 className="text-4xl font-bold mb-2">
+        Welcome back! <span>👋</span>
+      </h1>
+      <p className="text-gray-500 mb-8">
+        Here's what's happening with your inventory today.
+      </p>
 
-      {/* KPI Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
-        {cards.map((card, idx) => (
-          <div
-            key={idx}
-            onClick={card.onClick}
-            className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 cursor-pointer hover:shadow-lg hover:-translate-y-1 transition-all duration-200"
-          >
-            <div className="flex justify-between items-start mb-4">
-              <p className="text-sm text-gray-500 font-medium">{card.title}</p>
-              <div
-                className={`${card.bg} w-10 h-10 rounded-lg flex items-center justify-center text-xl`}
-              >
-                {card.icon}
-              </div>
-            </div>
-            <p
-              className={`text-3xl font-bold text-${card.color}-600 underline decoration-2 decoration-${card.color}-400 underline-offset-4 hover:decoration-${card.color}-600`}
+      {loading ? (
+        <p className="text-gray-400">Loading...</p>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          {kpis.map((kpi) => (
+            <Link
+              to={kpi.link}
+              key={kpi.label}
+              className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-lg hover:-translate-y-1 transition-all duration-200 group"
             >
-              {card.value}
-            </p>
-          </div>
-        ))}
-      </div>
+              <div className="flex justify-between items-start mb-3">
+                <p className="text-sm text-gray-500 font-medium">
+                  {kpi.label}
+                </p>
+                <div className={`${kpi.bg} p-2 rounded-lg`}>
+                  <span className="text-xl">{kpi.emoji}</span>
+                </div>
+              </div>
+
+              <p className="text-3xl font-bold text-blue-600 underline decoration-2 decoration-blue-300 underline-offset-4 group-hover:decoration-blue-600 transition">
+                {kpi.value}
+              </p>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
