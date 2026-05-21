@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 export default function Dashboard() {
   const [stats, setStats] = useState({
@@ -18,7 +18,7 @@ export default function Dashboard() {
     const fetchStats = async () => {
       try {
         const token = localStorage.getItem("token");
-        const res = await axios.get(`${API_URL}/dashboard/stats`, {
+        const res = await axios.get(`${API_URL}/api/dashboard/stats`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setStats(res.data);
