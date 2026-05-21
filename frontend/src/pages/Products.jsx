@@ -21,7 +21,7 @@ export default function Products() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const [showModal, setShowModal] = useState(false);
-  const [editingId, setEditingId] = useState(null); // null = creating
+  const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
 
@@ -56,6 +56,7 @@ export default function Products() {
   const fetchCategories = async () => {
     try {
       const res = await fetch(`${API_URL}/api/categories`, { headers: authHeaders() });
+      if (!res.ok) return;
       const data = await res.json();
       setCategories(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -164,18 +165,18 @@ export default function Products() {
   );
 
   if (loading)
-    return <div className="p-8 text-center text-gray-500">Loading products...</div>;
+    return <div className="p-4 md:p-8 text-center text-gray-500">Loading products...</div>;
 
   return (
-    <div className="p-8">
-      <div className="flex justify-between items-center mb-6">
+    <div className="p-4 md:p-8">
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-6">
         <div>
           <h1 className="text-3xl font-bold">Products</h1>
           <p className="text-gray-600">Manage your inventory products</p>
         </div>
         <button
           onClick={openCreate}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg font-medium shadow-sm transition"
+          className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg font-medium shadow-sm transition w-full sm:w-auto"
         >
           <Plus className="w-5 h-5" /> Add Product
         </button>
@@ -189,7 +190,8 @@ export default function Products() {
         className="w-full px-4 py-3 border border-gray-300 rounded-lg mb-6 focus:ring-2 focus:ring-blue-500 outline-none"
       />
 
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+      {/* DESKTOP TABLE (hidden on mobile) */}
+      <div className="hidden md:block bg-white rounded-xl shadow-sm overflow-hidden">
         <table className="w-full">
           <thead className="bg-gray-50 border-b">
             <tr>
@@ -248,11 +250,60 @@ export default function Products() {
         </table>
       </div>
 
+      {/* MOBILE CARDS (hidden on desktop) */}
+      <div className="md:hidden space-y-3">
+        {filteredProducts.length === 0 ? (
+          <div className="bg-white rounded-xl p-6 text-center text-gray-500">
+            No products found
+          </div>
+        ) : (
+          filteredProducts.map((p) => {
+            const status = getStockStatus(p);
+            return (
+              <div key={p.id} className="bg-white rounded-xl shadow-sm p-4 border">
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <h3 className="font-bold text-lg">{p.name}</h3>
+                    <p className="text-sm text-gray-500">SKU: {p.sku}</p>
+                  </div>
+                  <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold ${status.className}`}>
+                    {status.label}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center pt-3 border-t">
+                  <div className="text-sm">
+                    <span className="text-gray-500">Qty:</span>{" "}
+                    <span className="font-semibold">{p.quantity}</span>
+                    <span className="mx-3 text-gray-300">|</span>
+                    <span className="text-gray-500">Price:</span>{" "}
+                    <span className="font-semibold">${p.price}</span>
+                  </div>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => openEdit(p)}
+                      className="p-2 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setDeleteTarget(p)}
+                      className="p-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
       {/* Add/Edit Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
-            <div className="flex justify-between items-center p-5 border-b">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-auto">
+            <div className="flex justify-between items-center p-5 border-b sticky top-0 bg-white">
               <h2 className="text-xl font-bold">
                 {editingId ? "Edit Product" : "Add New Product"}
               </h2>
@@ -345,7 +396,7 @@ export default function Products() {
                   disabled={saving}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50"
                 >
-                  {saving ? "Saving..." : editingId ? "Update Product" : "Save Product"}
+                  {saving ? "Saving..." : editingId ? "Update" : "Save"}
                 </button>
               </div>
             </form>
